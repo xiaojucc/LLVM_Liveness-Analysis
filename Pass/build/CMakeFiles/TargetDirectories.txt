@@ -1,0 +1,4 @@
+/Users/cc/Desktop/HelloPass-LLVM-master/Pass/build/CMakeFiles/rebuild_cache.dir
+/Users/cc/Desktop/HelloPass-LLVM-master/Pass/build/CMakeFiles/edit_cache.dir
+/Users/cc/Desktop/HelloPass-LLVM-master/Pass/build/CMakeFiles/LLVMLivenessAnalysisPass.dir
+/Users/cc/Desktop/HelloPass-LLVM-master/Pass/build/CMakeFiles/intrinsics_gen.dir
