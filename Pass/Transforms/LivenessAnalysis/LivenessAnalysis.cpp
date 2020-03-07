@@ -65,12 +65,44 @@ struct Liveness : public FunctionPass {
         errs() << "BB:\n";
         for (auto& inst : *bb)
         {
-            // errs() << "\t"  << inst << "\n";
+            errs() << "\t"  << inst << "\n";
+          // if(inst.getOpcode() == Instruction::Alloca){
+          //   if(AllocaInst *allocInst = dyn_cast<AllocaInst>(&inst)){
+          //     StringRef varname= allocInst->getName();
+          //     Value* vall = allocInst->getOperand(0);
+          //     errs() << "variable name is :"<< varname ;
+          //     errs() << *vall ;
+          //   } 
+          // }
           if(inst.getOpcode() == Instruction::Load){
-            // errs() << "This is Load"<<"\n";
+            if(LoadInst *load = dyn_cast<LoadInst>(&inst)){
+              Value* v = load->getPointerOperand();
+              errs() << "\noperand is :"<< *v ;
+              if(AllocaInst *allocInst = dyn_cast<AllocaInst>(&*v)){
+                StringRef varname= allocInst->getName();
+                errs() << "variable name is :"<< varname ;
+                if(std::find(killSet->begin(), killSet->end(), varname) == killSet->end()) {
+                        UEEIt = UEE->begin();
+                        if (std::find(UEE->begin(),UEE->end(),varname)==UEE->end()){
+                            UEE->insert(UEEIt, varname);
+                        }
+                    }
+              } 
+            } 
           }
           if(inst.getOpcode() == Instruction::Store){
             // errs() << "This is Store"<<"\n";
+            if (StoreInst *store = dyn_cast<StoreInst>(&inst))
+            {
+              // std::string name = store->getValueOperand()->getName();
+              // errs() << "variable name is :"<< name ;
+              StringRef vstore = store->getOperand(1)->getName();
+              errs() << "stored varibale :"<< vstore ;
+              if(std::find(killSet->begin(), killSet->end(), vstore) == killSet->end()){
+                killSetIt = killSet->begin();
+                killSet->insert(killSetIt, vstore);
+              }
+            }
           }
           //if operator is assignment or phi or jump
           if (inst.isBinaryOp() || inst.getOpcode()==Instruction::PHI || inst.getOpcode()==Instruction::ICmp)
@@ -83,24 +115,24 @@ struct Liveness : public FunctionPass {
             int i = 1;
             for (auto it = ptr->op_begin(); it != ptr->op_end(); ++it) {
                 auto var = getValueName(it);
-                if(var!=NULL){
-                    // if the variable is not in KILLSET
-                    if(std::find(killSet->begin(), killSet->end(), *var) == killSet->end()) {
-                        errs() << "UEVar:\t" << *(*it) << "\n";
-                        // has this variable already in UEE
-                        UEEIt = UEE->begin();
-                        if (std::find(UEE->begin(),UEE->end(),*var)==UEE->end()){
-                            UEE->insert(UEEIt, *var);
-                        }
-                    }
-                }
+                // if(var!=NULL){
+                //     // if the variable is not in KILLSET
+                //     if(std::find(killSet->begin(), killSet->end(), *var) == killSet->end()) {
+                //         // errs() << "UEVar:\t" << *(*it) << "\n";
+                //         // has this variable already in UEE
+                //         UEEIt = UEE->begin();
+                //         if (std::find(UEE->begin(),UEE->end(),*var)==UEE->end()){
+                //             UEE->insert(UEEIt, *var);
+                //         }
+                //     }
+                // }
                 i++;
             }
-            std::string *op3_str = new std::string;
-            *op3_str = op3->getName();
-           errs() << "KillSet:\t" << *op3_str << "\n";
-            killSetIt = killSet->begin();
-            killSet->insert(killSetIt, *op3_str);
+            // std::string *op3_str = new std::string;
+            // *op3_str = op3->getName();
+          //  errs() << "KillSet:\t" << *op3_str << "\n";
+            // killSetIt = killSet->begin();
+            // killSet->insert(killSetIt, *op3_str);
           }
         }
 
@@ -253,16 +285,36 @@ struct Liveness : public FunctionPass {
         }
     }
 
-    void printBlockMap(std::map<BasicBlock*, std::vector<std::string>*> *inp){
-        errs() << "---------LiveOut-begin----------\n";
-        for (std::map<BasicBlock*, std::vector<std::string>*>::iterator block = inp->begin();block != inp->end();block++){
-            errs() << block->first->getName() << ":\n\t";
-            for(auto var = block->second->begin(); var!=block->second->end();var++){
-                errs() << *var << ", ";
-            }
-            errs() << "\n";
+    void printBlockMap(BasicBlock* bb,std::map<BasicBlock*, std::vector<std::string>*> *up_exposed,std::map<BasicBlock*, std::vector<std::string>*> *kill_set,std::map<BasicBlock*, std::vector<std::string>*> *live_out){
+      errs() <<"----- " <<bb->getName() << " -----:\n";
+      for (std::map<BasicBlock*, std::vector<std::string>*>::iterator block = up_exposed->begin();block != up_exposed->end();block++){
+        if(block->first->getName()==bb->getName()){
+          errs() <<"UEVAR: " ;
+          for(auto var = block->second->begin(); var!=block->second->end();var++){
+            errs() << *var << " ";
+          }
+          errs() << "\n";
         }
-        errs() << "---------LiveOut-end----------\n";
+      }
+      for (std::map<BasicBlock*, std::vector<std::string>*>::iterator block1 = kill_set->begin();block1 != kill_set->end();block1++){
+        if(block1->first->getName()==bb->getName()){
+          errs() <<"VARKILL: " ;
+          for(auto var = block1->second->begin(); var!=block1->second->end();var++){
+            errs() << *var << " ";
+          }
+          errs() << "\n";
+        }
+      }
+      for (std::map<BasicBlock*, std::vector<std::string>*>::iterator block2 = live_out->begin();block2 != live_out->end();block2++){
+        if(block2->first->getName()==bb->getName()){
+          errs() <<"LIVEOUR: " ;
+          for(auto var = block2->second->begin(); var!=block2->second->end();var++){
+            errs() << *var << " ";
+          }
+          errs() << "\n";
+        }
+      }
+        // errs() << "---------LiveOut-end----------\n";
     }
 
     bool static compareStrings(std::string str1, std::string str2){
@@ -335,7 +387,16 @@ struct Liveness : public FunctionPass {
           worklist.pop_front();
           i++;
       }
-      printBlockMap(&liveOut);
+      for (BasicBlock &BB : F)
+      {
+          printBlockMap(&BB,&UEE,&killSet,&liveOut);
+      }
+      // errs() << "\nliveout\n";
+      // printBlockMap(&liveOut);
+      // errs() << "\nkill\n";
+      // printBlockMap(&killSet);
+      // errs() << "\nliveout\n";
+      // printBlockMap(&UEE);
       return false;
   }
 
