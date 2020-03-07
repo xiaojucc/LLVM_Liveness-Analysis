@@ -11,6 +11,9 @@
 #include "llvm/IR/CFG.h"
 #include <list>
 #include <iterator>
+#include<fstream>
+#include<iomanip>
+#include <iostream>
 
 using namespace llvm;
 using namespace std;
@@ -285,36 +288,39 @@ struct Liveness : public FunctionPass {
         }
     }
 
-    void printBlockMap(BasicBlock* bb,std::map<BasicBlock*, std::vector<std::string>*> *up_exposed,std::map<BasicBlock*, std::vector<std::string>*> *kill_set,std::map<BasicBlock*, std::vector<std::string>*> *live_out){
-      errs() <<"----- " <<bb->getName() << " -----:\n";
+    string printBlockMap(BasicBlock* bb,std::map<BasicBlock*, std::vector<std::string>*> *up_exposed,std::map<BasicBlock*, std::vector<std::string>*> *kill_set,std::map<BasicBlock*, std::vector<std::string>*> *live_out){
+      std::string _instr;
+      std::string temp;
+      temp = bb->getName() ;
+      _instr  = _instr+"----- " + temp + "----- \n" ;
       for (std::map<BasicBlock*, std::vector<std::string>*>::iterator block = up_exposed->begin();block != up_exposed->end();block++){
         if(block->first->getName()==bb->getName()){
-          errs() <<"UEVAR: " ;
+           _instr =_instr + "UEVAR: " ;
           for(auto var = block->second->begin(); var!=block->second->end();var++){
-            errs() << *var << " ";
+            _instr =_instr + *var +" ";
           }
-          errs() << "\n";
+          _instr =_instr+ "\n" ;
         }
       }
       for (std::map<BasicBlock*, std::vector<std::string>*>::iterator block1 = kill_set->begin();block1 != kill_set->end();block1++){
         if(block1->first->getName()==bb->getName()){
-          errs() <<"VARKILL: " ;
+          _instr = _instr+ "VARKILL: " ;
           for(auto var = block1->second->begin(); var!=block1->second->end();var++){
-            errs() << *var << " ";
+             _instr = _instr+ *var+ " ";
           }
-          errs() << "\n";
+          _instr = _instr+ "\n" ;
         }
       }
       for (std::map<BasicBlock*, std::vector<std::string>*>::iterator block2 = live_out->begin();block2 != live_out->end();block2++){
         if(block2->first->getName()==bb->getName()){
-          errs() <<"LIVEOUR: " ;
+          _instr =_instr + "LIVEOUT: " ;
           for(auto var = block2->second->begin(); var!=block2->second->end();var++){
-            errs() << *var << " ";
+            _instr =_instr + *var+ " ";
           }
-          errs() << "\n";
+           _instr =_instr + "\n" ;
         }
       }
-        // errs() << "---------LiveOut-end----------\n";
+      return _instr;
     }
 
     bool static compareStrings(std::string str1, std::string str2){
@@ -365,6 +371,7 @@ struct Liveness : public FunctionPass {
       UEE.clear();
       liveOut.clear();
       worklist.clear();
+      std::string *outputstr = new std::string;
       // initialize UEVar and the Killset on all blocks
       for (auto& basic_block : F)
       {
@@ -387,16 +394,24 @@ struct Liveness : public FunctionPass {
           worklist.pop_front();
           i++;
       }
+
       for (BasicBlock &BB : F)
       {
-          printBlockMap(&BB,&UEE,&killSet,&liveOut);
+        *outputstr = *outputstr + printBlockMap(&BB,&UEE,&killSet,&liveOut);
       }
-      // errs() << "\nliveout\n";
-      // printBlockMap(&liveOut);
-      // errs() << "\nkill\n";
-      // printBlockMap(&killSet);
-      // errs() << "\nliveout\n";
-      // printBlockMap(&UEE);
+      errs() << *outputstr;
+      std::string filename = F.getParent()->getSourceFileName();
+      if(filename == "Test.c"){
+        filename = "1.out";
+      }else if(filename == "Test2.c"){
+        filename = "2.out";
+      }else{
+        filename.replace(filename.find("c"),string("c").length(),"out");
+      }
+      ofstream file; 
+      file.open(filename);
+      file << *outputstr;
+      file.close();
       return false;
   }
 
