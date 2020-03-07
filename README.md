@@ -16,5 +16,5 @@ opt Test.ll -mem2reg -S -o Test.bc
 ```
 After generating test.bc, execute following command it execute the LLVM Pass. 
 ```bash
-opt -load ../Pass/build/libLLVMLivenessAnalysisPass.so  -ValueNumbering Test.ll
+opt -load ../Pass/build/libLLVMLivenessAnalysisPass.so  -Liveness Test.ll
 ```
