@@ -57,11 +57,11 @@ struct Liveness : public FunctionPass {
               if(AllocaInst *allocInst = dyn_cast<AllocaInst>(&*v)){
                 StringRef varname= allocInst->getName();
                 if(std::find(killSet->begin(), killSet->end(), varname) == killSet->end()) {
-                        UEEIt = UEE->begin();
-                        if (std::find(UEE->begin(),UEE->end(),varname)==UEE->end()){
-                            UEE->insert(UEEIt, varname);
-                        }
-                    }
+                  UEEIt = UEE->begin();
+                  if (std::find(UEE->begin(),UEE->end(),varname)==UEE->end()){
+                      UEE->insert(UEEIt, varname);
+                  }
+                }
               } 
             } 
           }
@@ -75,11 +75,6 @@ struct Liveness : public FunctionPass {
               }
             }
           }
-          if (inst.isBinaryOp() || inst.getOpcode()==Instruction::PHI || inst.getOpcode()==Instruction::ICmp)
-          {
-            auto* ptr = dyn_cast<User>(&inst);
-            auto* op3 = dyn_cast<Value>(&inst);
-          }
         }
 
         temp->first = bb;
@@ -90,9 +85,8 @@ struct Liveness : public FunctionPass {
         this->UEE.insert(*temp);
     }
 
-
+    //compute LIVEOUT for each BB 
     bool LiveoutBlock(BasicBlock* basic_block) {
-
         std::vector<std::string> *liveB;
         auto search = liveOut.find(basic_block);
         if ( search != liveOut.end()){
@@ -105,7 +99,7 @@ struct Liveness : public FunctionPass {
         }
         // Update the Liveout of this block based on its successors
         // Union(successors) like Liveout(successor) - Killset(successor) + UEE(successor)
-       auto tempLiveB = new std::vector<std::string>;
+        auto tempLiveB = new std::vector<std::string>;
         for (BasicBlock *Succ : successors(basic_block)) {
             std::vector<std::string> *lSucc;
             std::vector<std::string> *kSucc;
@@ -115,22 +109,10 @@ struct Liveness : public FunctionPass {
 
             // find the killset of this BB
             searchS = killSet.find(Succ);
-            if (searchS != killSet.end()){
-                kSucc = searchS->second;
-            }
-            else {
-                return false;
-            }
-
+            kSucc = searchS->second;
             // find the UUE of this BB
             searchS = UEE.find(Succ);
-            if (searchS != UEE.end()){
-                uSucc = searchS->second;
-            }
-            else {
-                return false;
-            }
-
+            uSucc = searchS->second;
             // find the liveOut of this BB
             searchS = liveOut.find(Succ);
 
@@ -156,7 +138,7 @@ struct Liveness : public FunctionPass {
         else {
             std::vector<std::string>::iterator it;
             for (it = liveB->begin();it != liveB->end();it++){
-                if(std::find(tempLiveB->begin(),tempLiveB->end(),*it)==tempLiveB->end()){ //maybe using set_symmetric_difference instead
+                if(std::find(tempLiveB->begin(),tempLiveB->end(),*it)==tempLiveB->end()){ 
                     changed = true;
                     break;
                 }
@@ -172,18 +154,17 @@ struct Liveness : public FunctionPass {
                 temp->second = tempLiveB;
                 this->liveOut.insert(*temp);
             }
-
         }
         return changed;
     }
 
     // back to front traverse, return the order how bb should be visited
-    std::list<BasicBlock*>* PostOrderTraverse(BasicBlock* bb, std::list<BasicBlock*> *visited, std::list<BasicBlock*> *order) {
+    std::list<BasicBlock*>* PostTraverse(BasicBlock* bb, std::list<BasicBlock*> *visited, std::list<BasicBlock*> *order) {
         visited->push_back(bb);
         for (BasicBlock *succ : successors(bb)) { // Parse the left tree and, then the right tree. Technically, it would be recursive call on every successor
             if (std::find(visited->begin(), visited->end(), succ)==visited->end()){
                 //if the successor hasn't been visited before, keep on searching on its successors
-                visited = PostOrderTraverse(succ,visited,order);
+                visited = PostTraverse(succ,visited,order);
             }
         }
         // when it come the bb which has no successor, put in the order list and return to is ancestoer saying I was visited,is your turn now !
@@ -191,6 +172,7 @@ struct Liveness : public FunctionPass {
         return visited;
     }
 
+    //compute LIVEOUT and add changed basicblock's pred to worklist 
     void LivenessAnalysis(BasicBlock* bb) {
         bool changed = LiveoutBlock(bb);
         if(changed){
@@ -203,11 +185,12 @@ struct Liveness : public FunctionPass {
         }
     }
 
-    string printBlockMap(BasicBlock* bb,std::map<BasicBlock*, std::vector<std::string>*> *up_exposed,std::map<BasicBlock*, std::vector<std::string>*> *kill_set,std::map<BasicBlock*, std::vector<std::string>*> *live_out){
+    //print out result
+    string printAnalysis(BasicBlock* bb,std::map<BasicBlock*, std::vector<std::string>*> *up_exposed,std::map<BasicBlock*, std::vector<std::string>*> *kill_set,std::map<BasicBlock*, std::vector<std::string>*> *live_out){
       std::string _instr;
       std::string temp;
       temp = bb->getName() ;
-      _instr  = _instr+"----- " + temp + "----- \n" ;
+      _instr  = _instr+"----- " + temp + " ----- \n" ;
       for (std::map<BasicBlock*, std::vector<std::string>*>::iterator block = up_exposed->begin();block != up_exposed->end();block++){
         if(block->first->getName()==bb->getName()){
            _instr =_instr + "UEVAR: " ;
@@ -250,7 +233,6 @@ struct Liveness : public FunctionPass {
         *s3 = *s1;
         for (auto it=s2->begin();it!=s2->end();it++){
             if(std::find(s1->begin(),s1->end(),*it)==s1->end()){
-
                 s3->insert(s3->end(),*it);
             }
         }
@@ -273,7 +255,7 @@ struct Liveness : public FunctionPass {
       BasicBlock &basicBlock = F.getEntryBlock();
       std::list<BasicBlock*> *visited = new std::list<BasicBlock*>;
       // get the traverse function
-      auto visitedBlocks = PostOrderTraverse(&basicBlock,visited,&worklist);
+      auto visitedBlocks = PostTraverse(&basicBlock,visited,&worklist);
       // initialize the worklist to the entry block, then all others will be automatically added from there
       int i = 0;
       while (!worklist.empty()) // Call Liveness on the entry block until worklist is empty
@@ -283,10 +265,10 @@ struct Liveness : public FunctionPass {
           worklist.pop_front();
           i++;
       }
-
+      //make output file
       for (BasicBlock &BB : F)
       {
-        *outputstr = *outputstr + printBlockMap(&BB,&UEE,&killSet,&liveOut);
+        *outputstr = *outputstr + printAnalysis(&BB,&UEE,&killSet,&liveOut);
       }
       errs() << *outputstr;
       std::string filename = F.getParent()->getSourceFileName();
